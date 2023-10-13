@@ -1,0 +1,12 @@
+python==3.8
+torch
+gym
+pybullet
+shapely
+seaborn
+tqdm
+tensorboard
+PyYAML
+scikit-learn
+matplotlib
+pandas
