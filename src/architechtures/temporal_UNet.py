@@ -3,7 +3,7 @@ import torch.nn as nn
 import einops
 from einops.layers.torch import Rearrange
 
-from unet_helper import *
+from architechtures.unet_helper import *
 
 class ResidualTemporalBlock(nn.Module):
 
@@ -101,7 +101,7 @@ class TemporalUnet(nn.Module):
             nn.Conv1d(dim, transition_dim, 1),
         )
 
-    def forward(self, x, cond, time):
+    def forward(self, x, time, cond=None):
         '''
             x : [ batch x horizon x transition ]
         '''
@@ -150,5 +150,5 @@ if __name__ ==  '__main__':
     t = torch.randn((b,1))
     inp = torch.randn((b, horizon, transition_dim))
 
-    out = model(inp, None, t)
+    out = model(inp, t)
     print(out.shape)

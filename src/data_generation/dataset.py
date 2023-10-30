@@ -97,6 +97,19 @@ class AEDataset(Dataset):
         x = {'pt_clouds': x}
         return x, x
 
+class TrajectoryDataset(Dataset):
+    def __init__(self, hparams, mode='train', mp_df=None):
+        self.hparams = hparams
+        pass
+
+    def __len__(self):
+        return 100
+
+    def __getitem__(self, index):
+        
+        traj = torch.randn(self.hparams['horizon'], self.hparams['transition_dim'])
+        return traj, None
+
 
 def get_train_test_val(hparams):
     mode = hparams['mode']

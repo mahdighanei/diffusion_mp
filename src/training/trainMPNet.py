@@ -1,6 +1,5 @@
 from architechtures.AE_model import AENet3
-from architechtures.agent_model import MPNet1, MPNet2, c2gHOF
-from architechtures.selfsupervised_model import SelfSupervisedModel
+from architechtures.agent_model import MPNet1
 from data_generation.dataset import MPNetDataset, get_train_test_val
 from utilities.utils import ChamferDistance
 
@@ -31,7 +30,7 @@ def lossCriterionMPNet(pred, target):
     """
     loss = {}
     loss_val = 0
-    key = 'action' #'c2g'
+    key = 'action'
     
     loss['loss_' + key] = F.l1_loss(pred[key], target[key])
     loss_val += loss['loss_' + key]

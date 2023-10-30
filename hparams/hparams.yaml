@@ -3,7 +3,7 @@
 ###############################
 # training
 mode: 'mpnet'                  # `ae`, `mpnet`
-batch_size: 512 #32              # overriden to 512 if mpnet
+batch_size: 8 #32              # overriden to 512 if mpnet
 num_epochs: 1000
 test_interval: 5 #10
 
@@ -26,3 +26,15 @@ sample_latent: False
 ###############################
 ae_num_ptclouds: 2048
 ae_latentsize: 128
+
+
+###############################
+### Diffusion parameters
+###############################
+noise_steps: 1000
+beta_start: 0.0001
+beta_end: 0.2
+
+horizon: 64
+transition_dim: 14
+dim: 32
