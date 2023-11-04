@@ -1,4 +1,4 @@
-from data_generation.dataset import TrajectoryDataset
+from data_generation.dataset import get_train_test_val, TrajectoryDataset
 from architechtures.temporal_UNet import TemporalUnet
 
 import os
@@ -18,8 +18,8 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=log
 
 
 class Diffusion:
-    def __init__(self, hparams):
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    def __init__(self, hparams, device='cuda'):
+        self.device = device
         self.hparams = hparams
         self.beta = self.prepare_noise_schedule().to(self.device)
         self.alpha = 1. - self.beta
@@ -29,8 +29,8 @@ class Diffusion:
         return torch.linspace(self.hparams['beta_start'], self.hparams['beta_end'], self.hparams['noise_steps'])
         
     def noise_input(self, x, t):
-        sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t])[:, None, None, None]
-        sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t])[:, None, None, None]
+        sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t])[:, None, None]
+        sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t])[:, None, None]
         eps = torch.randn_like(x)
         return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * eps, eps
 
@@ -45,9 +45,9 @@ class Diffusion:
             for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0):
                 t = (torch.ones(n) * i).long().to(self.device)
                 predicted_noise = model(x, t)
-                alpha = self.alpha[t][:, None, None, None]
-                alpha_hat = self.alpha_hat[t][:, None, None, None]
-                beta = self.beta[t][:, None, None, None]
+                alpha = self.alpha[t][:, None, None]
+                alpha_hat = self.alpha_hat[t][:, None, None]
+                beta = self.beta[t][:, None, None]
                 if i > 1:
                     noise = torch.randn_like(x)
                 else:
@@ -76,26 +76,29 @@ def startLog(hparams, model):
 
 def trainDiffusion(hparams):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+   
+    ### data loader
+    loader_train, _, _ = get_train_test_val(hparams)
+    print('data loaded') 
     
-    dataloader = TrajectoryDataset(hparams)
-    
-    model = TemporalUnet(hparams['horizon'], hparams['transition_dim']).to(device)
-    diffusion = Diffusion(hparams=hparams)
+    model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True).to(device)
+    diffusion = Diffusion(hparams=hparams, device=device)
     optimizer = optim.AdamW(model.parameters(), lr=hparams['lr'])
     mse = nn.MSELoss()
     
     directory, writer = startLog(hparams, model)
-    l = len(dataloader)
+    l = len(loader_train)
 
     for epoch in tqdm(range(hparams['num_epochs'])):
         epoch_running_loss = 0.0
-        pbar = tqdm(range(dataloader.__len__()), leave=False)
+        pbar = tqdm(range(loader_train.__len__()), leave=False)
 
-        for i, (inp, label) in enumerate(dataloader, 0):
+        for i, (inp, label) in enumerate(loader_train, 0):
             inp = inp.to(device)
 
             t = diffusion.sample_timesteps(inp.shape[0]).to(device)
             x_t, noise = diffusion.noise_input(inp, t)
+
             predicted_noise = model(x_t, t)
 
             loss = mse(noise, predicted_noise)

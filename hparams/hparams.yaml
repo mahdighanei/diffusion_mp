@@ -2,8 +2,8 @@
 ### General training
 ###############################
 # training
-mode: 'mpnet'                  # `ae`, `mpnet`
-batch_size: 8 #32              # overriden to 512 if mpnet
+mode: 'diffusion'                  # `ae`, `mpnet`, 'diffusion'
+batch_size: 128 #32              # overriden to 512 if mpnet
 num_epochs: 1000
 test_interval: 5 #10
 
@@ -35,6 +35,6 @@ noise_steps: 1000
 beta_start: 0.0001
 beta_end: 0.2
 
-horizon: 64
+horizon: 128
 transition_dim: 14
 dim: 32

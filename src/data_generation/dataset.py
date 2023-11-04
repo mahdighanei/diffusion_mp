@@ -99,16 +99,64 @@ class AEDataset(Dataset):
 
 class TrajectoryDataset(Dataset):
     def __init__(self, hparams, mode='train', mp_df=None):
+        # print(mode)
         self.hparams = hparams
-        pass
+        
+        # data_folder = hparams['data_folder']
+        # thresh_plan = hparams['thresh_plan']
+        # thresh_env =  hparams['thresh_env']
+        # path = hparams['path']
+        # self.hparams = hparams
+        # mp_data = pd.read_json(f'{data_folder}MPData{path}.json', orient='index') if mp_df is None else mp_df
+        # self.shape_data = pd.read_json(f'{data_folder}MPObsShapeData{path}.json', orient='index')
+        # obs_path = f'{data_folder}MPObsData{path}.npy'
+        # print(obs_path)
+        # self.obs_data = np.load(obs_path).astype(np.float32)
+
+        # dim = 7
+
+        # if mode == 'train':
+        #     mp_data = mp_data[(mp_data['plan_id'] < thresh_plan) & (mp_data['env_id'] < thresh_env)]
+        # elif mode == 'test':
+        #     mp_data = mp_data[(mp_data['plan_id'] >= thresh_plan) & (mp_data['env_id'] < thresh_env)]
+        # elif mode == 'val':
+        #     mp_data = mp_data[mp_data['env_id'] >= thresh_env]
+            
+        # self.data_state = np.array(mp_data['state'].tolist(), dtype=np.float32)[:,(-2*dim):]
+        # self.data_action = np.array(mp_data['action'].tolist(), dtype=np.float32)
+        # self.data_envidx = np.array(mp_data['env_id'].tolist())
+        # self.data_planidx = np.array(mp_data['plan_id'].tolist())
+        # print('data state', self.data_state.shape, 'shape data', self.shape_data.shape, 'obs data', self.obs_data.shape)
+
+        # traj_data = []
+        # # mp_data['env_id']
+        # # for env_id in range(mp_data.iloc(-1)['env_id'] + 1):
+        # #     cond = (mp_data['env_id'] == env_id)
+        # #     for plan_id in range(mp_data.iloc(-1)['plan_id'] + 1):
+        # #         traj_idx = (mp_data['plan_id'] < thresh_plan) & (mp_data['plan_id'] == plan_id)
+
+        # for envid in range(self.data_envidx[-1]):
+        #     for planid in range(self.data_planidx[-1]):
+            
+        #         idx = np.logical_and(self.data_envidx == envid, self.data_planidx == planid)
+        #         states = self.data_state(idx)
+        #         actions = self.data_action(idx)
+        #         actions[-1] = 0.0
+        #         np.concatenate((states, actions), axis=-1)
+
+        
+                
+
+                
+
 
     def __len__(self):
-        return 100
+        return 100000
 
     def __getitem__(self, index):
         
         traj = torch.randn(self.hparams['horizon'], self.hparams['transition_dim'])
-        return traj, None
+        return traj, traj
 
 
 def get_train_test_val(hparams):
@@ -118,7 +166,8 @@ def get_train_test_val(hparams):
     path = hparams['path']
     file_name = 'MPData' if mode == 'mpnet' else 'MPRobotData'
 
-    mp_df = pd.read_pickle(f'{data_folder}{file_name}{path}.pkl')
+    # mp_df = pd.read_pickle(f'{data_folder}{file_name}{path}.pkl')
+    mp_df = None
     print('data file loaded')
     print(mp_df)
 
@@ -126,6 +175,8 @@ def get_train_test_val(hparams):
         dataset = MPNetDataset
     elif mode == 'ae':     
         dataset = AEDataset
+    elif mode == 'diffusion':
+        dataset = TrajectoryDataset
     seq = ['train', 'test', 'val']
     loader_seq = []
     for it in seq:

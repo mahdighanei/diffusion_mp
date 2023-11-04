@@ -3,7 +3,10 @@ import torch.nn as nn
 import einops
 from einops.layers.torch import Rearrange
 
-from architechtures.unet_helper import *
+try:
+    from architechtures.unet_helper import *
+except:
+    from unet_helper import *
 
 class ResidualTemporalBlock(nn.Module):
 
@@ -107,7 +110,7 @@ class TemporalUnet(nn.Module):
         '''
 
         x = einops.rearrange(x, 'b h t -> b t h')
-
+        time = time[:, None] # get [b,1]
         t = self.time_mlp(time)
         h = []
 

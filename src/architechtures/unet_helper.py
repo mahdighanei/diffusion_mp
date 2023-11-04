@@ -16,11 +16,10 @@ class SinusoidalPosEmb(nn.Module):
         inv_freq = 1.0 / (
             10000
             ** (torch.arange(0, self.dim, 2).float() / self.dim)
-        )
+        ).to(t.device)
         pos_enc_a = torch.sin(t.repeat(1, self.dim // 2) * inv_freq)
         pos_enc_b = torch.cos(t.repeat(1, self.dim // 2) * inv_freq)
         pos_enc = torch.cat([pos_enc_a, pos_enc_b], dim=-1)
-        print(pos_enc.shape)
         return pos_enc
 
 class Downsample1d(nn.Module):
