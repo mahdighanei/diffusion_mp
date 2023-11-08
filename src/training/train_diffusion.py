@@ -120,7 +120,3 @@ def trainDiffusion(hparams):
                     'optimizer': optimizer.state_dict(),
                 }
         torch.save(state, directory + f'model_{epoch}.ckpt')
-
-
-if __name__ == '__main__':
-    trainDiffusion(hparams)

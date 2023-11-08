@@ -13,7 +13,7 @@ weight_decay: 0
 ###############################
 ### dataset
 ###############################
-data_folder: 'data/data2500_tabletop/data_10sec/'
+data_folder: data/data2500_tabletop/data_10sec/
 path: '_numPlansPerEnv_2500_tabletop'
 ae_path: '_tabletop_idx0'   # for ae training only
 lowlevel: False
