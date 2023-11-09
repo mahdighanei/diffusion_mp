@@ -31,6 +31,9 @@ ae_latentsize: 128
 ###############################
 ### Diffusion parameters
 ###############################
+use_EMA: False
+conditional_DDPM: False
+
 noise_steps: 1000
 beta_start: 0.0001
 beta_end: 0.2

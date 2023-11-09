@@ -48,6 +48,7 @@ class TemporalUnet(nn.Module):
         dim=32,
         dim_mults=(1, 2, 4, 8),
         attention=False,
+        conditional=False
     ):
         super().__init__()
 
@@ -62,6 +63,14 @@ class TemporalUnet(nn.Module):
             nn.Mish(),
             nn.Linear(dim * 4, dim),
         )
+
+        if conditional:
+            cond_embedding_dim = 64
+            self.conditional_mlp = nn.Sequential(
+                nn.Linear(cond_embedding_dim, cond_embedding_dim * 4),
+                nn.Mish(),
+                nn.Linear(cond_embedding_dim * 4, dim),
+            )
 
         self.downs = nn.ModuleList([])
         self.ups = nn.ModuleList([])
@@ -113,6 +122,9 @@ class TemporalUnet(nn.Module):
         time = time[:, None] # get [b,1]
         t = self.time_mlp(time)
         h = []
+        if cond is not None:
+            cond_emb = self.conditional_mlp(cond)
+            t = t + cond_emb
 
         for resnet, resnet2, attn, downsample in self.downs:
             x = resnet(x, t)
