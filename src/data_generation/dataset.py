@@ -108,12 +108,9 @@ class TrajectoryDataset(Dataset):
         thresh_plan = hparams['thresh_plan']
         thresh_env =  hparams['thresh_env']
         path = hparams['path']
-
         file_name = 'MPData'
 
-        mp_df = pd.read_pickle(f'{data_folder}{file_name}{path}.pkl')
-        self.makeTrajData(mp_df)
-
+        # self.makeTrajData(mp_df)
 
         mp_data = np.load('data/trajdata.npy', allow_pickle=True).item()
         print('\nfile loaded...', mp_data['traj'].shape, mp_data['env_id'].shape)
@@ -187,13 +184,22 @@ class TrajectoryDataset(Dataset):
 
         return interpolated_points.astype(np.float32)
 
-    def makeTrajData(self, mp_data):
+    def makeTrajData(self, mp_data=None):
         """Makes trajectory data from state-action data
 
         Args:
             mp_data (_type_): _description_
         """
         dim = 7
+
+        hparams = self.hparams
+        data_folder = hparams['data_folder']
+        thresh_plan = hparams['thresh_plan']
+        thresh_env =  hparams['thresh_env']
+        path = hparams['path']
+        file_name = 'MPData'
+        mp_data = pd.read_pickle(f'{data_folder}{file_name}{path}.pkl')
+
         self.data_state = np.array(mp_data['state'].tolist(), dtype=np.float32)[:,(-2*dim):]
         self.data_action = np.array(mp_data['action'].tolist(), dtype=np.float32)
         self.data_envidx = np.array(mp_data['env_id'].tolist())
@@ -205,8 +211,16 @@ class TrajectoryDataset(Dataset):
         for envid in tqdm(range(self.data_envidx[-1])):
             env_idx = np.where(self.data_envidx == envid)
             env_idx_first = env_idx[0][0]
+            cnt = 0
             for planid in tqdm(range(self.data_planidx[-1]), desc='plan_id', leave=False):
                 idx = env_idx_first + np.where(self.data_planidx[env_idx] == planid)[0]
+                if not idx.shape[0] > 1:
+                    cnt += 1
+                    continue
+                    # print('ERROr short length**************')
+                    # print(idx)
+                    # print('plan id range', self.data_planidx[idx[0]-3 : idx[-1]+3])
+                
                 states = self.data_state[idx]
                 goal_state = states[0][:dim]
                 states = states[:, dim:]   # remove goal state
@@ -220,6 +234,7 @@ class TrajectoryDataset(Dataset):
                 self.data['env_id'].append(envid)
                 self.data['plan_id'].append(planid)
                 self.data['goal_state'].append(goal_state)
+            print(f'count is {cnt}')
         for k in self.data.keys():
             self.data[k] = np.array(self.data[k])
         print(self.data['traj'].shape, self.data['env_id'].shape)
