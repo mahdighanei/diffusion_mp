@@ -20,6 +20,9 @@ if __name__ == "__main__":
     hparams = yaml.safe_load(Path('./hparams/hparams.yaml').read_text())
     print(hparams)
 
+    # seed = 
+    # np.random.seed(seed)
+    # torch.manual_seed(seed)
     np.set_printoptions(precision=4)
     ######################################################
     ### training

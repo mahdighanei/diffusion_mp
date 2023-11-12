@@ -76,7 +76,6 @@ class Diffusion:
         return torch.randint(low=1, high=self.hparams['noise_steps'], size=(n,))
 
     def sample(self, model, n):
-        logging.info(f"Sampling {n} new trajectories....")
         model.eval()
         with torch.no_grad():
             x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim'])).to(self.device)
@@ -93,15 +92,14 @@ class Diffusion:
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
         model.train()
 
-        x.clamp(-1, 1)
+        # x.clamp(-1, 1)
         return x
 
     def sampleCFG(self, model, n, labels, cfg_scale=3):
-        logging.info(f"Sampling {n} new trajectories....")
         model.eval()
         with torch.no_grad():
             x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim'])).to(self.device)
-            for i in tqdm(reversed(range(1, self.noise_steps)), position=0):
+            for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0):
                 t = (torch.ones(n) * i).long().to(self.device)
                 predicted_noise = model(x, t, labels)
                 if cfg_scale > 0:
@@ -117,7 +115,7 @@ class Diffusion:
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
         model.train()
 
-        x.clamp(-1, 1)
+        # x.clamp(-1, 1)
         return x
 
 def startLog(hparams, model):
@@ -140,11 +138,11 @@ def trainDiffusion(hparams):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
    
     ### data loader
-    loader_train = get_train_test_val(hparams)
+    loader_train, _, loader_val = get_train_test_val(hparams)
     print('data loaded') 
     
     if hparams['conditional_DDPM']:
-        model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True, conditional=True)
+        model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=False, conditional=True)
     else:
         model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True, conditional=False)
     model = model.to(device)
@@ -164,6 +162,7 @@ def trainDiffusion(hparams):
 
         for i, (inp, label) in enumerate(loader_train, 0):
             inp = inp.to(device)
+            label = label.to(device)
 
             t = diffusion.sample_timesteps(inp.shape[0]).to(device)
             x_t, noise = diffusion.noise_input(inp, t)
@@ -191,8 +190,16 @@ def trainDiffusion(hparams):
 
         if ((epoch + 1) % hparams['test_interval'] == 0):
             if hparams['conditional_DDPM']:
-                labels = None  # sample class
-                sampled_trajectories = diffusion.sampleCFG(ema_model, hparams['batch_size'], labels)
+                traj_log = []
+                pbar_val = pbar = tqdm(range(loader_val.__len__()), leave=False)
+                for i, (inp, label) in enumerate(loader_val, 0):
+                    label = label.to(device)
+                    sampled_trajectories = diffusion.sampleCFG(ema_model, hparams['batch_size'], label)
+                    traj_log.append({'label': label.cpu().detach().numpy(),
+                                      'traj': sampled_trajectories.cpu().detach().numpy()})
+                    pbar_val.update(1)
+                pbar_val.close()
+                np.save(directory + f'traj_log_ep{epoch}.npy', np.array(traj_log))
             else:
                 sampled_trajectories = diffusion.sample(model, hparams['batch_size'])
             state = {

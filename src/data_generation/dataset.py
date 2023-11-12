@@ -103,6 +103,7 @@ class TrajectoryDataset(Dataset):
     def __init__(self, hparams, mode='train', mp_df=None):
         print(mode)
         self.hparams = hparams
+        self.mode = mode
         
         data_folder = hparams['data_folder']
         thresh_plan = hparams['thresh_plan']
@@ -112,7 +113,7 @@ class TrajectoryDataset(Dataset):
 
         # self.makeTrajData()
 
-        mp_data = np.load('data/trajdata.npy', allow_pickle=True).item()
+        mp_data = np.load(hparams['data_folder'] + 'trajdata.npy', allow_pickle=True).item()
         print('\nfile loaded...', mp_data['traj'].shape, mp_data['env_id'].shape)
         self.shape_data = pd.read_json(f'{data_folder}MPObsShapeData{path}.json', orient='index')  # shape info for obs
         self.obs_data = np.load(f'{data_folder}MPObsData{path}.npy').astype(np.float32)  # latent obs embedding
@@ -231,11 +232,16 @@ class TrajectoryDataset(Dataset):
         return self.data['traj'].shape[0]
 
     def __getitem__(self, index):
-        obs_embedding = self.obs_data[self.data['env_id'][index]] # [obs_embedding_dim]
-        traj = self.data['traj'][index] # [horizon * transition_dim]
-        traj = torch.from_numpy(traj).type(torch.float32) 
-        
-        return traj, traj
+        env_id = self.data['env_id'][index]
+        obs_embedding = self.obs_data[env_id][0] # [obs_embedding_dim]
+        obs_embedding = torch.from_numpy(obs_embedding).type(torch.float32)
+
+        if self.mode == 'train':
+            traj = torch.from_numpy(self.data['traj'][index]).type(torch.float32)   # [horizon * transition_dim]
+        else:
+            traj = torch.tensor(env_id, dtype=torch.long)
+
+        return traj, obs_embedding
 
 def get_train_test_val(hparams):
     mode = hparams['mode']
@@ -261,6 +267,6 @@ def get_train_test_val(hparams):
         loader = torch.utils.data.DataLoader(dataset(hparams, it, mp_df), batch_size=batch_size,
                                                     shuffle=True, num_workers=10)
         loader_seq.append(loader)
-        if hparams['mode'] == 'diffusion':
-            return loader
+        # if hparams['mode'] == 'diffusion':
+        #     return loader
     return loader_seq[0], loader_seq[1], loader_seq[2]

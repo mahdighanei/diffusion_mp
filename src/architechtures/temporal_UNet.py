@@ -65,7 +65,7 @@ class TemporalUnet(nn.Module):
         )
 
         if conditional:
-            cond_embedding_dim = 64
+            cond_embedding_dim = 128
             self.conditional_mlp = nn.Sequential(
                 nn.Linear(cond_embedding_dim, cond_embedding_dim * 4),
                 nn.Mish(),
