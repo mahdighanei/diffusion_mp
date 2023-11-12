@@ -3,7 +3,7 @@
 ###############################
 # training
 mode: 'diffusion'                  # `ae`, `mpnet`, 'diffusion'
-batch_size: 1024 #32              # overriden to 512 if mpnet
+batch_size: 1024 #1024 #32              # overriden to 512 if mpnet
 num_epochs: 1000
 test_interval: 50 #10
 

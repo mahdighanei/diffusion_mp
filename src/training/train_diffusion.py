@@ -12,12 +12,8 @@ from torch import optim
 import datetime
 # from utils import *
 # from modules import UNet
-import logging
 import time
 from torch.utils.tensorboard import SummaryWriter
-
-logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
-
 
 class EMA:
     def __init__(self, beta):
@@ -73,14 +69,14 @@ class Diffusion:
         return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * eps, eps
 
     def sample_timesteps(self, n):
-        return torch.randint(low=1, high=self.hparams['noise_steps'], size=(n,))
+        return torch.randint(low=1, high=self.hparams['noise_steps'], size=(n,), device=self.device)
 
     def sample(self, model, n):
         model.eval()
         with torch.no_grad():
-            x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim'])).to(self.device)
-            for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0):
-                t = (torch.ones(n) * i).long().to(self.device)
+            x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim']), device=self.device)
+            for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0, leave=False):
+                t = (torch.ones(n, device=self.device) * i).long()
                 predicted_noise = model(x, t)
                 alpha = self.alpha[t][:, None, None]
                 alpha_hat = self.alpha_hat[t][:, None, None]
@@ -98,9 +94,9 @@ class Diffusion:
     def sampleCFG(self, model, n, labels, cfg_scale=3):
         model.eval()
         with torch.no_grad():
-            x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim'])).to(self.device)
-            for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0):
-                t = (torch.ones(n) * i).long().to(self.device)
+            x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim']), device=self.device)
+            for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0, leave=False):
+                t = (torch.ones(n, device=self.device) * i).long()
                 predicted_noise = model(x, t, labels)
                 if cfg_scale > 0:
                     uncond_predicted_noise = model(x, t, None)
@@ -142,7 +138,7 @@ def trainDiffusion(hparams):
     print('data loaded') 
     
     if hparams['conditional_DDPM']:
-        model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=False, conditional=True)
+        model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True, conditional=True)
     else:
         model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True, conditional=False)
     model = model.to(device)
@@ -151,7 +147,6 @@ def trainDiffusion(hparams):
     loss_fn = nn.MSELoss()
     
     directory, writer = startLog(hparams, model)
-    l = len(loader_train)
     if hparams['use_EMA']:
         ema = EMA(0.995)
         ema_model = copy.deepcopy(model).eval().requires_grad_(False)
@@ -164,7 +159,7 @@ def trainDiffusion(hparams):
             inp = inp.to(device)
             label = label.to(device)
 
-            t = diffusion.sample_timesteps(inp.shape[0]).to(device)
+            t = diffusion.sample_timesteps(inp.shape[0])
             x_t, noise = diffusion.noise_input(inp, t)
 
             if hparams['conditional_DDPM']:
@@ -182,26 +177,12 @@ def trainDiffusion(hparams):
                 ema.step_ema(ema_model, model)
 
             pbar.update(1)
-            epoch_running_loss += loss.item()
-            pbar.set_postfix(MSE=loss.item())
+            epoch_running_loss += loss
         
         ### evaluate & save the model
-        writer.add_scalar("MSE_train", epoch_running_loss/(i + 1), global_step=epoch * l + i)
+        writer.add_scalar("MSE_train", epoch_running_loss.item()/(i + 1), global_step=epoch)
 
         if ((epoch + 1) % hparams['test_interval'] == 0):
-            if hparams['conditional_DDPM']:
-                traj_log = []
-                pbar_val = pbar = tqdm(range(loader_val.__len__()), leave=False)
-                for i, (inp, label) in enumerate(loader_val, 0):
-                    label = label.to(device)
-                    sampled_trajectories = diffusion.sampleCFG(ema_model, hparams['batch_size'], label)
-                    traj_log.append({'label': label.cpu().detach().numpy(),
-                                      'traj': sampled_trajectories.cpu().detach().numpy()})
-                    pbar_val.update(1)
-                pbar_val.close()
-                np.save(directory + f'traj_log_ep{epoch}.npy', np.array(traj_log))
-            else:
-                sampled_trajectories = diffusion.sample(model, hparams['batch_size'])
             state = {
                         'epoch': epoch,
                         'state_dict': model.state_dict(),
@@ -210,3 +191,21 @@ def trainDiffusion(hparams):
             if hparams['use_EMA']:
                 state['ema_state_dict'] = ema_model.state_dict()
             torch.save(state, directory + f'model_{epoch}.ckpt')
+        
+            traj_log = []
+            if hparams['conditional_DDPM']:
+                pbar_val = pbar = tqdm(range(loader_val.__len__()), leave=False)
+                for i, (inp, label) in enumerate(loader_val, 0):
+                    if i > 142: #temporary bug
+                        break
+                    label = label.to(device)
+                    sampled_trajectories = diffusion.sampleCFG(ema_model, hparams['batch_size'], label)
+                    traj_log.append({'label': label.cpu().detach().numpy(),
+                                      'traj': sampled_trajectories.cpu().detach().numpy()})
+                    pbar_val.update(1)
+                pbar_val.close()
+            else:
+                for i in range(10):
+                    sampled_trajectories = diffusion.sample(model, hparams['batch_size'])
+                traj_log.append(traj_log.append({'traj': sampled_trajectories.cpu().detach().numpy()}))
+            np.save(directory + f'traj_log_ep{epoch}.npy', np.array(traj_log))
