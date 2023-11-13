@@ -193,19 +193,22 @@ def trainDiffusion(hparams):
             torch.save(state, directory + f'model_{epoch}.ckpt')
         
             traj_log = []
+            label_log = []
+            total_batches = -1
             if hparams['conditional_DDPM']:
                 pbar_val = pbar = tqdm(range(loader_val.__len__()), leave=False)
                 for i, (inp, label) in enumerate(loader_val, 0):
-                    if i > 142: #temporary bug
+                    if i >= total_batches:
                         break
                     label = label.to(device)
                     sampled_trajectories = diffusion.sampleCFG(ema_model, hparams['batch_size'], label)
-                    traj_log.append({'label': label.cpu().detach().numpy(),
-                                      'traj': sampled_trajectories.cpu().detach().numpy()})
+                    traj_log.append(sampled_trajectories.cpu().detach().numpy())
+                    label_log.append(label.cpu().detach().numpy())
                     pbar_val.update(1)
                 pbar_val.close()
             else:
-                for i in range(10):
+                for i in range(total_batches):
                     sampled_trajectories = diffusion.sample(model, hparams['batch_size'])
                 traj_log.append(traj_log.append({'traj': sampled_trajectories.cpu().detach().numpy()}))
-            np.save(directory + f'traj_log_ep{epoch}.npy', np.array(traj_log))
+            np.save(directory + f'traj_log_ep{epoch}.npy', {'label': np.array(label_log),
+                                                            'traj': np.array(traj_log)} )

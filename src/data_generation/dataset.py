@@ -128,6 +128,8 @@ class TrajectoryDataset(Dataset):
         for k in mp_data.keys():
             mp_data[k] = mp_data[k][cond]
         self.data = mp_data
+        self.data_envidx = self.data['env_id']
+        self.data_planidx = self.data['plan_id']
         print(self.data['traj'].shape, self.data['env_id'].shape)
 
 
