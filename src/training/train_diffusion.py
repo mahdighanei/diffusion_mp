@@ -52,6 +52,19 @@ class Diffusion:
 
     def prepare_noise_schedule(self):
         return torch.linspace(self.hparams['beta_start'], self.hparams['beta_end'], self.hparams['noise_steps'])
+    
+    def cosine_beta_schedule(self, timesteps, s=0.008):
+        """
+        cosine schedule
+        as proposed in https://openreview.net/forum?id=-NEXDKk8gZ
+        """
+        steps = timesteps + 1
+        x = np.linspace(0, steps, steps)
+        alphas_cumprod = np.cos(((x / steps) + s) / (1 + s) * np.pi * 0.5) ** 2
+        alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+        betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+        betas_clipped = np.clip(betas, a_min=0, a_max=0.999)
+        return torch.tensor(betas_clipped, dtype=torch.float32)
         
     def noise_input(self, x, t):
         """Noises input data

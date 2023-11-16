@@ -117,6 +117,12 @@ class TrajectoryDataset(Dataset):
         print('\nfile loaded...', mp_data['traj'].shape, mp_data['env_id'].shape)
         self.shape_data = pd.read_json(f'{data_folder}MPObsShapeData{path}.json', orient='index')  # shape info for obs
         self.obs_data = np.load(f'{data_folder}MPObsData{path}.npy').astype(np.float32)  # latent obs embedding
+        shapedata = []
+        for k in self.shape_data.keys():
+            if k != 'env_id':
+                shapedata.append(np.array(self.shape_data[k].tolist(), dtype=np.float32))
+        shapedata = np.concatenate(shapedata, axis=-1)  # if want to use GT obs info
+        print('shapedata', self.shape_data.shape)
 
         if mode == 'train':
             cond = (mp_data['plan_id'] < thresh_plan) & (mp_data['env_id'] < thresh_env)
@@ -236,6 +242,7 @@ class TrajectoryDataset(Dataset):
     def __getitem__(self, index):
         env_id = self.data['env_id'][index]
         obs_embedding = self.obs_data[env_id][0] # [obs_embedding_dim]
+        # obs_embedding = self.shape_data[env_id]
         obs_embedding = torch.from_numpy(obs_embedding).type(torch.float32)
 
         if self.mode == 'train':
