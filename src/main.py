@@ -2,7 +2,7 @@ from environment.kuka_env import KukaEnv
 from environment.envwrapper import GymEnvironment, getPtClouds
 from training.trainMPNet import TrainerMPNet
 from training.train_diffusion import trainDiffusion
-from visualization.visualize import VisualizeDiffusion
+from visualization.visualize import visualizeTrajDataset, visualizeDiffusionPerformance
 
 import torch
 import numpy as np
@@ -30,8 +30,9 @@ if __name__ == "__main__":
     # trainer_mpnet = TrainerMPNet(hparams)
     # trainer_mpnet.train()
 
-    trainDiffusion(hparams)
+    # trainDiffusion(hparams)
 
     ######################################################
     ### visualize
-    # VisualizeDiffusion(hparams)
+    # visualizeTrajDataset(hparams)
+    visualizeDiffusionPerformance(mode='val', hparams=hparams)

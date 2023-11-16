@@ -245,7 +245,8 @@ class TrajectoryDataset(Dataset):
         # obs_embedding = self.shape_data[env_id]
         obs_embedding = torch.from_numpy(obs_embedding).type(torch.float32)
 
-        if self.mode == 'train':
+        # if self.mode == 'train':
+        if True:
             traj = torch.from_numpy(self.data['traj'][index]).type(torch.float32)   # [horizon * transition_dim]
         else:
             traj = torch.tensor(env_id, dtype=torch.long)

@@ -3,9 +3,9 @@
 ###############################
 # training
 mode: 'diffusion'                  # `ae`, `mpnet`, 'diffusion'
-batch_size: 1024 #1024 #32              # overriden to 512 if mpnet
+batch_size: 128 #1024 #1024 #32              # overriden to 512 if mpnet
 num_epochs: 1000
-test_interval: 50 #50 #10
+test_interval: 1 #50 #50 #10
 
 lr: 0.0001
 weight_decay: 0
