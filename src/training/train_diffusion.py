@@ -137,7 +137,9 @@ def trainDiffusion(hparams):
                 pbar_val.close()
             else:
                 for i in range(total_batches):
+                    if i >= total_batches:
+                        break
                     sampled_trajectories = diffusion.sample(model, hparams['batch_size'])
-                traj_log.append(traj_log.append({'traj': sampled_trajectories.cpu().detach().numpy()}))
+                    traj_log.append(traj_log.append({'traj': sampled_trajectories.cpu().detach().numpy()}))
             np.save(directory + f'traj_log_ep{epoch}.npy', {'label': np.array(label_log),
                                                             'traj': np.array(traj_log)} )

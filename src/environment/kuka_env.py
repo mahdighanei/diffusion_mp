@@ -105,8 +105,11 @@ class KukaEnv:
     def disconnect(self):
         p.disconnect()
     
-    def add_visual_cube(self, pos):
-        bodyid = p.loadURDF("cube.urdf", pos, globalScaling=0.05, flags=p.URDF_IGNORE_COLLISION_SHAPES) # visualize vertex
+    def add_visual_cube(self, pos, shape='sphere'):
+        if shape == 'cube':
+            bodyid = p.loadURDF("cube.urdf", pos, globalScaling=0.05, flags=p.URDF_IGNORE_COLLISION_SHAPES) # visualize vertex
+        elif shape == 'sphere':
+            bodyid = p.loadURDF("sphere2.urdf", pos, globalScaling=0.05, flags=p.URDF_IGNORE_COLLISION_SHAPES) # visualize vertex
         return bodyid
     
     def get_collision_position(self):

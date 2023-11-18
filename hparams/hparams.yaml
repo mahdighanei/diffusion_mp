@@ -3,9 +3,9 @@
 ###############################
 # training
 mode: 'diffusion'                  # `ae`, `mpnet`, 'diffusion'
-batch_size: 128 #1024 #1024 #32              # overriden to 512 if mpnet
+batch_size: 1024 #1024 #32              # overriden to 512 if mpnet
 num_epochs: 1000
-test_interval: 1 #50 #50 #10
+test_interval: 50 #50 #10
 
 lr: 0.0001
 weight_decay: 0
@@ -13,12 +13,14 @@ weight_decay: 0
 ###############################
 ### dataset
 ###############################
-data_folder: data/data2500_tabletop/data_10sec/
-path: '_numPlansPerEnv_2500_tabletop'
+# data_folder: data/data2500_tabletop/data_10sec/
+# path: '_numPlansPerEnv_2500_tabletop'
+data_folder: data/data2d/   # 2d data 
+path: '_numPlansPerEnv_5000_idx0'
 ae_path: '_tabletop_idx0'   # for ae training only
 lowlevel: False
-thresh_plan: 2000
-thresh_env: 290
+thresh_plan: 2000 #4000 #2d-data    #2000
+thresh_env: 120 #    #290
 
 sample_latent: False
 ###############################
@@ -38,6 +40,7 @@ noise_steps: 1000
 beta_start: 0.0001
 beta_end: 0.2
 
-horizon: 128
-transition_dim: 14
-dim: 32
+horizon: 64
+transition_dim: 4 #14
+time_dim: 32
+dim: 2  # state/action dim #7

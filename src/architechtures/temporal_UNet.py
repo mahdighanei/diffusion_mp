@@ -65,7 +65,7 @@ class TemporalUnet(nn.Module):
         )
 
         if conditional:
-            cond_embedding_dim = 128 #6*7 #128
+            cond_embedding_dim = 64 #128 #6*7 #128
             self.conditional_mlp = nn.Sequential(
                 nn.Linear(cond_embedding_dim, cond_embedding_dim * 4),
                 nn.Mish(),
@@ -76,7 +76,7 @@ class TemporalUnet(nn.Module):
         self.ups = nn.ModuleList([])
         num_resolutions = len(in_out)
 
-        print(in_out)
+        # horizon is not used anywhere
         for ind, (dim_in, dim_out) in enumerate(in_out):
             is_last = ind >= (num_resolutions - 1)
 

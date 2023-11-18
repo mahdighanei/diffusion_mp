@@ -33,3 +33,29 @@ class MPNet1(nn.Module):
         out['action'] = output # if training 
         # out = output
         return out
+    
+
+class CollisionModel(nn.Module):
+    """model mapping latent representation of obstacles and (state, action) to collison prob
+    """
+    def __init__(self, state_dim):
+        super(CollisionModel, self).__init__()
+
+        prob = 0.35
+        self.fc = nn.Sequential(
+            nn.Linear(state_dim, 1024), nn.LeakyReLU(inplace=True),
+            nn.Linear(1024, 1536), nn.LeakyReLU(inplace=True),
+            nn.Dropout(p=prob),
+            nn.Linear(1536, 1280), nn.LeakyReLU(inplace=True),
+            nn.Dropout(p=prob),
+            nn.Linear(1280, 1024), nn.LeakyReLU(inplace=True),
+            nn.Dropout(p=prob),
+            nn.Linear(1024, 768), nn.LeakyReLU(inplace=True), 
+            nn.Linear(768, 2)
+        )
+
+    def forward(self, state):
+        encoding = torch.concatenate((state['obs_embedding'], state['state']), dim=-1)
+        output = self.fc(encoding)
+        out = {'collided': output} 
+        return out

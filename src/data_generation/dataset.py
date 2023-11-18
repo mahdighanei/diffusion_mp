@@ -99,6 +99,60 @@ class AEDataset(Dataset):
         x = {'pt_clouds': x}
         return x, x
 
+class Collision(Dataset):
+    def __init__(self, hparams, mode='train', mp_df=None):
+        print(mode)
+        data_folder = hparams['data_folder']
+        path = hparams['path']
+        thresh_env =  hparams['thresh_env']
+
+        mp_data = pd.read_json(f'{data_folder}MPRobotData{path}.json', orient='index') if mp_df is None else mp_df
+        self.shape_data = pd.read_json(f'{data_folder}MPObsShapeData{path}.json', orient='index')
+        self.obs_data = np.load(f'{data_folder}obsdata{path}.npy').astype(np.float32)
+
+        if mode == 'train':
+            mp_data = mp_data[mp_data['env_id'] < thresh_env]
+        elif mode == 'test': # test & val are the same
+            mp_data = mp_data[mp_data['env_id'] >= thresh_env]
+        elif mode == 'val':
+            mp_data = mp_data[mp_data['env_id'] >= thresh_env]
+        
+        self.data = {}
+        self.data['current_state'] = np.array(mp_data['curent_state'].tolist(), dtype=np.float32)
+        self.data['action'] = np.array(mp_data['action'].tolist(), dtype=np.float32)
+        self.data['collided'] = np.array(mp_data['collided'].tolist(), dtype=np.int32)
+        self.data['env_id'] = np.array(mp_data['env_id'].tolist())
+
+    def __len__(self):
+        return self.data['collided'].shape[0]
+
+    def __getitem__(self, index):
+        x = {}
+        output = {}
+        
+        x['state'] = np.concatenate((self.data['current_state'][index, ...],
+                                     self.data['action'][index, ...]), axis=-1)
+        # x['obs_embedding'] = 
+
+
+        env_id = self.data['env_id'][index]
+        obs_embedding = self.obs_data[env_id][0] # [obs_embedding_dim]
+        # obs_embedding = self.shape_data[env_id]
+        obs_embedding = torch.from_numpy(obs_embedding).type(torch.float32)
+ 
+        for k in x.keys():
+            x[k] = torch.from_numpy(x[k]).type(torch.float32)
+        
+        for k in output.keys():
+            if k == 'collided':
+                output[k] = torch.from_numpy(output[k]).type(torch.long)
+            else:
+                output[k] = torch.from_numpy(output[k]).type(torch.float32)
+
+        return x, output
+
+
+
 class TrajectoryDataset(Dataset):
     def __init__(self, hparams, mode='train', mp_df=None):
         print(mode)
@@ -111,6 +165,7 @@ class TrajectoryDataset(Dataset):
         path = hparams['path']
         file_name = 'MPData'
 
+        # if want to make dataset file
         # self.makeTrajData()
 
         mp_data = np.load(hparams['data_folder'] + 'trajdata.npy', allow_pickle=True).item()
@@ -122,7 +177,8 @@ class TrajectoryDataset(Dataset):
             if k != 'env_id':
                 shapedata.append(np.array(self.shape_data[k].tolist(), dtype=np.float32))
         shapedata = np.concatenate(shapedata, axis=-1)  # if want to use GT obs info
-        print('shapedata', self.shape_data.shape)
+        print('shapedata', shapedata.shape, 'obs_embedding:', self.obs_data.shape)
+        print('total env_id:', mp_data['env_id'])
 
         if mode == 'train':
             cond = (mp_data['plan_id'] < thresh_plan) & (mp_data['env_id'] < thresh_env)
@@ -152,9 +208,9 @@ class TrajectoryDataset(Dataset):
         points_before = copy.deepcopy(points)
         points = np.array(points)
         points = np.unique(points, axis=0)
-        if not points.shape[0] > 1:
-            print('Error')
-            print('points_before:', points_before)
+        # if not points.shape[0] > 1:
+        #     print('Error')
+        #     print('points_before:', points_before)
 
         # Calculate the total distance along the path defined by the points
         distances = np.sqrt(np.sum(np.diff(points, axis=0) ** 2, axis=1))
@@ -197,7 +253,7 @@ class TrajectoryDataset(Dataset):
         """
         Makes trajectory data from state-action data
         """
-        dim = 7
+        dim = self.hparams['dim']
 
         hparams = self.hparams
         data_folder = hparams['data_folder']
@@ -213,11 +269,17 @@ class TrajectoryDataset(Dataset):
         print('data state', self.data_state.shape)
 
         self.data = {k: list() for k in ['traj', 'env_id', 'plan_id', 'goal_state']}
-        for envid in tqdm(range(self.data_envidx[-1])):
+        for envid in tqdm(range(self.data_envidx[-1] + 1)):
             env_idx = np.where(self.data_envidx == envid)
             env_idx_first = env_idx[0][0]
-            for planid in tqdm(range(self.data_planidx[-1]), desc='plan_id', leave=False):
+            cnt = 0
+            for planid in tqdm(range(self.data_planidx[-1] + 1), desc='plan_id', leave=False):
                 idx = env_idx_first + np.where(self.data_planidx[env_idx] == planid)[0]
+                # print(np.where(self.data_planidx[env_idx] == planid))
+                if np.where(self.data_planidx[env_idx] == planid)[0].shape[0] == 1:
+                    cnt += 1
+                    continue
+
                 states = self.data_state[idx]
                 goal_state = states[0][:dim]
                 states = states[:, dim:]   # remove goal state
@@ -231,26 +293,23 @@ class TrajectoryDataset(Dataset):
                 self.data['env_id'].append(envid)
                 self.data['plan_id'].append(planid)
                 self.data['goal_state'].append(goal_state)
+            print(cnt)
         for k in self.data.keys():
             self.data[k] = np.array(self.data[k])
         print(self.data['traj'].shape, self.data['env_id'].shape)
-        np.save('data/trajdata.npy', self.data, allow_pickle=True)
+        np.save('data/trajdata_2d.npy', self.data, allow_pickle=True)
 
     def __len__(self):
         return self.data['traj'].shape[0]
 
     def __getitem__(self, index):
         env_id = self.data['env_id'][index]
-        obs_embedding = self.obs_data[env_id][0] # [obs_embedding_dim]
+        # obs_embedding = self.obs_data[env_id][0] # [obs_embedding_dim]
+        obs_embedding = self.obs_data[env_id] # 2d dataset
         # obs_embedding = self.shape_data[env_id]
+
         obs_embedding = torch.from_numpy(obs_embedding).type(torch.float32)
-
-        # if self.mode == 'train':
-        if True:
-            traj = torch.from_numpy(self.data['traj'][index]).type(torch.float32)   # [horizon * transition_dim]
-        else:
-            traj = torch.tensor(env_id, dtype=torch.long)
-
+        traj = torch.from_numpy(self.data['traj'][index]).type(torch.float32)   # [horizon * transition_dim]
         return traj, obs_embedding
 
 def get_train_test_val(hparams):

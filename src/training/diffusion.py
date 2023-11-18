@@ -45,10 +45,15 @@ class Diffusion:
     def sample_timesteps(self, n):
         return torch.randint(low=1, high=self.hparams['noise_steps'], size=(n,), device=self.device)
 
-    def sample(self, model, n):
+    def sample(self, model, n, extra_inp=None):
+        dim = self.hparams['dim']
         model.eval()
         with torch.no_grad():
             x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim']), device=self.device)
+            if extra_inp is not None:
+                x[:, 0, :dim] = extra_inp['start']
+                x[:, -1, :dim] = extra_inp['goal']
+                x[:, -1, dim:] = 0.0  # last action zero
             for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0, leave=False):
                 t = (torch.ones(n, device=self.device) * i).long()
                 predicted_noise = model(x, t)
@@ -60,27 +65,31 @@ class Diffusion:
                 else:
                     noise = torch.zeros_like(x)
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
+
+                if extra_inp is not None:
+                    x[:, 0, :dim] = extra_inp['start']
+                    x[:, -1, :dim] = extra_inp['goal']
+                    x[:, -1, dim:] = 0.0  # last action zero
         model.train()
 
         # x.clamp(-1, 1)
         return x
 
     def sampleCFG(self, model, n, labels, cfg_scale=3, extra_inp=None):
+        dim = self.hparams['dim']
         model.eval()
         with torch.no_grad():
             x = torch.randn((n, self.hparams['horizon'], self.hparams['transition_dim']), device=self.device)
+            if extra_inp is not None:
+                x[:, 0, :dim] = extra_inp['start']
+                x[:, -1, :dim] = extra_inp['goal']
+                x[:, -1, dim:] = 0.0  # last action zero
             for i in tqdm(reversed(range(1, self.hparams['noise_steps'])), position=0, leave=False):
                 t = (torch.ones(n, device=self.device) * i).long()
                 predicted_noise = model(x, t, labels)
                 if cfg_scale > 0:
                     uncond_predicted_noise = model(x, t, None)
                     predicted_noise = torch.lerp(uncond_predicted_noise, predicted_noise, cfg_scale)
-                if extra_inp is not None:
-                    dim = 7
-                    predicted_noise[:, 0, :dim] = extra_inp['start']
-                    predicted_noise[:, -1, :dim] = extra_inp['goal']
-                    predicted_noise[:, -1:, dim:] = 0.0  # last action zero
-
                 alpha = self.alpha[t][:, None, None]
                 alpha_hat = self.alpha_hat[t][:, None, None]
                 beta = self.beta[t][:, None, None]
@@ -89,6 +98,12 @@ class Diffusion:
                 else:
                     noise = torch.zeros_like(x)
                 x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
+
+                if extra_inp is not None:
+                    x[:, 0, :dim] = extra_inp['start']
+                    x[:, -1, :dim] = extra_inp['goal']
+                    x[:, -1, dim:] = 0.0  # last action zero
+        print('final out', x[0, 0, :dim], x[0, -1, :dim])
         model.train()
 
         # x.clamp(-1, 1)

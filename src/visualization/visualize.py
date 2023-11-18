@@ -12,7 +12,15 @@ from tqdm import trange, tqdm
 import matplotlib.pyplot as plt
 
 
+def plotTraj(env, obs_info, traj):
+    """Plot trajectory if done
+    """
+    # env.stspace.disconnect()
 
+    # stsp = KukaEnv(GUI=True)
+    # env = GymEnvironment(stsp)
+    # env.populateObstacles(obs_info, removelastIdx=0)
+    env.stspace.plot(traj)
 
 def visualizeTrajDataset(hparams):
     """Visualize diffusion from ouptut trajectory file
@@ -32,6 +40,7 @@ def visualizeTrajDataset(hparams):
         idx = np.random.randint(0, 1024)
         label = data[b]['label'][idx]
         traj = data[b]['traj'][idx, :, :dim]
+        print(traj.shape)
         np.where(obs_data[:, ...] == label)
         envid = np.where(obs_data[:, ...] == label)[0][0]
         print('level ', label.shape, traj.shape)
@@ -55,7 +64,7 @@ def visualizeDiffusionPerformance(mode, hparams):
     """Visualize/Evaluate the Diffusion performance on the dataset
     """
     config = {'use_model': True, 'stochastic': True, 'skip_trivial': False}
-    N = 128         # (batch size) Number of actions
+    N = 32 #128         # (batch size) Number of actions
     max_tsteps = 30 # max time step for traj
 
     ### load dataset
@@ -69,7 +78,7 @@ def visualizeDiffusionPerformance(mode, hparams):
     dim = 7
 
     ### diffusion model
-    path_diffusion = 'logs/conditioned_attention/model_9.ckpt'
+    path_diffusion = 'logs/conditioned_withattention/model_999.ckpt'
     diffusion_model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True, conditional=True).to(device)
     diffusion_model.load_state_dict(torch.load(path_diffusion)['ema_state_dict'])
     diffusion_model.eval()
@@ -85,18 +94,19 @@ def visualizeDiffusionPerformance(mode, hparams):
     stats = {'num_trivial': 0, 'num_solved': 0, 'num_total': 0}
     print('max_tsteps', max_tsteps)
     goal_bodyid = -1
+    start_bodyid = -1
     pre_envid = -1
     pre_planid = -1
     pbar = trange(0, dataset.__len__())
     for i in pbar:
-        # i = np.random.randint(0, dataset.__len__())  # for random plotting
+        i = np.random.randint(0, dataset.__len__())  # for random plotting
         envid = data_env_id[i]
         if envid != pre_envid:
             if pre_envid != -1:
                 env.stspace.disconnect()
             pre_envid = envid
 
-            stsp = KukaEnv(GUI=False)
+            stsp = KukaEnv(GUI=True)
             env = GymEnvironment(stsp)
             obs_info = shape_data.iloc[envid]
             env.populateObstacles(obs_info, removelastIdx=0)
@@ -107,13 +117,19 @@ def visualizeDiffusionPerformance(mode, hparams):
             x, y = dataset.__getitem__(i) # [,H, 2*dim], [, obs_dim]
 
             env.stspace.init_state = x[0, :dim].cpu().data.numpy().flatten()
-            env.stspace.goal_state = x[-1, dim:].cpu().data.numpy().flatten()
+            env.stspace.goal_state = x[-1, :dim].cpu().data.numpy().flatten()
 
+            ### plot start and goal
             info_traj = [env.stspace.init_state]
-            # goal_xyz = env.stspace.get_robot_points(env.stspace.goal_state)
-            # if goal_bodyid != -1:
-            #     env.stspace.remove_body(goal_bodyid)
-            # goal_bodyid = env.stspace.add_visual_cube(goal_xyz)
+            goal_xyz = env.stspace.get_robot_points(env.stspace.goal_state)
+            if goal_bodyid != -1:
+                env.stspace.remove_body(goal_bodyid)
+            goal_bodyid = env.stspace.add_visual_cube(goal_xyz)
+            
+            start_xyz = env.stspace.get_robot_points(env.stspace.init_state)
+            if goal_bodyid != -1:
+                env.stspace.remove_body(start_bodyid)
+            start_bodyid = env.stspace.add_visual_cube(start_xyz, 'cube')
 
             stats['num_total'] += 1
             state = env.reset(sampleStandGoal=False, new_obstacle=False)
@@ -134,14 +150,28 @@ def visualizeDiffusionPerformance(mode, hparams):
                         
                         ###  get traj using diffusion model
                         start = torch.tile(torch.from_numpy(state[dim:]).to(device), (N, 1))
-                        goal = torch.tile(x[-1, dim:].to(device), (N, 1))
+                        goal = torch.tile(x[-1, :dim].to(device), (N, 1))
                         extra_inp = {'start': start, 'goal': goal}
+                        # extra_inp = None
+                        
                         traj = diffusion.sampleCFG(diffusion_model, N, obs_embedding, extra_inp=extra_inp) # [N, H, 2*dim]
                         print('traj.shape', traj.shape)
 
                         ## not needed
                         # action = traj[:, 0, dim:]   # get batch of first actions
                         # action = action.cpu().data.numpy().flatten()
+
+                        action = traj[:, 3, :dim] - traj[:, 0, :dim]  # action = state_t3 - state_t0
+                        # print(action)
+    
+                        traj_states = torch.concatenate((traj[0, ::4, :dim], traj[0, -1:, :dim]),
+                                                         dim=0).cpu().data.numpy()
+                        print(traj_states)
+                        print(traj[0, -5:, :dim].cpu().data.numpy())
+                        print('start', env.stspace.init_state)
+                        print('goal', env.stspace.goal_state)
+                    
+                        plotTraj(env, obs_info, traj_states)
 
                         ### Collision model - choose action based on collision prob
                         inp = {'obs_embedding': obs_embedding, 'state': traj[:, 0, ...]}
@@ -151,7 +181,8 @@ def visualizeDiffusionPerformance(mode, hparams):
                         # col_prob = F.softmax(col_prob, dim=-1).cpu().data.numpy()[:, 1]
                         # best_act_idx = np.argmin(col_prob, axis=-1)
                         best_act_idx = 0
-                        action = traj[best_act_idx, 0, dim:].cpu().data.numpy()
+                        # action = traj[best_act_idx, 0, dim:].cpu().data.numpy()
+                        action = action[best_act_idx].cpu().data.numpy()
                 else:
                     action = x[t, dim:].cpu().data.numpy().flatten()
                 state, r, done, _ = env.step(action)

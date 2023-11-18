@@ -30,9 +30,20 @@ if __name__ == "__main__":
     # trainer_mpnet = TrainerMPNet(hparams)
     # trainer_mpnet.train()
 
-    # trainDiffusion(hparams)
+    trainDiffusion(hparams)
 
     ######################################################
     ### visualize
     # visualizeTrajDataset(hparams)
-    visualizeDiffusionPerformance(mode='val', hparams=hparams)
+    # visualizeDiffusionPerformance(mode='val', hparams=hparams)
+
+
+    # a = torch.randn((32, 12, 3))
+    # b = torch.concatenate((a[0, ::4, ...], a[0, -1:, ...]), dim = 0)
+    # print(a[0])
+    # print(b)
+    # a = np.random.randn(12, 3)
+    # print(np.arange(0,12,4))
+    # print(a)
+    # print(a[::4])
+    # print(a[:None:4])
