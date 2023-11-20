@@ -113,7 +113,7 @@ class StateSpace2D(object):
         """Plots the environment with the obstacles
         """
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        config = {'use_model': True, 'stochastic': True, 'skip_trivial': False}
+        self.config = {'use_model': True, 'stochastic': True, 'skip_trivial': False}
         N = 6 #32 #128         # (batch size) Number of actions
         max_tsteps = 1 #30 # max time step for traj
 
@@ -173,7 +173,7 @@ class StateSpace2D(object):
                 ### plan using trained model or visualize dataset
                 for t in range(max_tsteps):
                     # input('press enter')
-                    if config['use_model']:
+                    if self.config['use_model']:
                         with torch.no_grad():
                             obs_embedding = torch.tile(y, (N, 1)).to(device)
                             
@@ -222,7 +222,7 @@ class StateSpace2D(object):
                         next_state = state + action
                         traj_plot.append((state, next_state))
 
-                        if not self.config['use_MPNet'] and done:
+                        if not self.config['use_model'] and done:
                             del traj_plot[-1]
                         
                         if self.isLineCollision(state, next_state,  use_stspace_extent=True): # if collision detected
@@ -276,7 +276,7 @@ class StateSpace2D(object):
         plt.xlim(self.bounds)
         plt.ylim(self.bounds)
         print('saving plot', i)
-        name = 'mpnet' if  self.config['use_MPNet'] else 'gt'
+        name = 'mpnet' if  self.config['use_model'] else 'gt'
         plt.savefig(f'data/pics/Env{self.env_id}_{self.plan_id}_{name}.png', bbox_inches='tight')
         plt.show()
         plt.close()
