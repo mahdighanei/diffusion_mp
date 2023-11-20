@@ -103,7 +103,6 @@ class Diffusion:
                     x[:, 0, :dim] = extra_inp['start']
                     x[:, -1, :dim] = extra_inp['goal']
                     x[:, -1, dim:] = 0.0  # last action zero
-        print('final out', x[0, 0, :dim], x[0, -1, :dim])
         model.train()
 
         # x.clamp(-1, 1)

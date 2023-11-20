@@ -3,6 +3,7 @@ from environment.envwrapper import GymEnvironment, getPtClouds
 from training.trainMPNet import TrainerMPNet
 from training.train_diffusion import trainDiffusion
 from visualization.visualize import visualizeTrajDataset, visualizeDiffusionPerformance
+from visualization.visualize2d import StateSpace2D
 
 import torch
 import numpy as np
@@ -30,12 +31,14 @@ if __name__ == "__main__":
     # trainer_mpnet = TrainerMPNet(hparams)
     # trainer_mpnet.train()
 
-    trainDiffusion(hparams)
+    # trainDiffusion(hparams)
 
     ######################################################
     ### visualize
     # visualizeTrajDataset(hparams)
     # visualizeDiffusionPerformance(mode='val', hparams=hparams)
+    stspace2d = StateSpace2D()
+    stspace2d.visualizeMPNet(hparams)
 
 
     # a = torch.randn((32, 12, 3))

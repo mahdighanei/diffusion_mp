@@ -37,13 +37,13 @@ class RectangleObs(object):
         return False
 
 
-class StateSpace(object):
+class StateSpace2D(object):
     """State-space for 2d obstacle environment.
     """
     def __init__(self) -> None:
-        super(StateSpace, self).__init__()
+        super(StateSpace2D, self).__init__()
         self.obstacles = []
-        self.bounds = [0, 5]
+        self.bounds = [0, 1]
     
     def sampleRandom(self):
         """Sample a random state
@@ -112,21 +112,21 @@ class StateSpace(object):
     def visualizeMPNet(self, hparams):
         """Plots the environment with the obstacles
         """
-        self.config = {'use_MPNet': True, 'stochastic': False}
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         config = {'use_model': True, 'stochastic': True, 'skip_trivial': False}
-        N = 32 #128         # (batch size) Number of actions
-        max_tsteps = 30 # max time step for traj
+        N = 6 #32 #128         # (batch size) Number of actions
+        max_tsteps = 1 #30 # max time step for traj
 
         dim = 2
         ### load dataset
+        mode = 'val'
         dataset = TrajectoryDataset(hparams=hparams, mode=mode)
         shape_data = dataset.shape_data
         data_env_id = dataset.data_envidx
         data_plan_id = dataset.data_planidx
 
         ### diffusion model
-        path_diffusion = 'logs/conditioned_withattention/model_999.ckpt'
+        path_diffusion = 'logs/model2d/model_999.ckpt'
         diffusion_model = TemporalUnet(hparams['horizon'], hparams['transition_dim'], attention=True, conditional=True).to(device)
         diffusion_model.load_state_dict(torch.load(path_diffusion)['ema_state_dict'])
         diffusion_model.eval()
@@ -139,10 +139,11 @@ class StateSpace(object):
 
         pre_envid = -1
         pre_planid = -1
-        pbar = trange(50000, dataset.__len__())
+        pbar = trange(0, dataset.__len__())
         for i in pbar:
-            # i = random.randint(0,  dataset.__len__())
-            envid = dataset.data['envidx'][i]
+            i = random.randint(0,  dataset.__len__())  # for random selection
+            print('data', i)
+            envid = dataset.data['env_id'][i]
             if envid != pre_envid:
                 pre_envid = envid
                 self.env_id = envid
@@ -150,7 +151,7 @@ class StateSpace(object):
                 # env.populateObstacles(obs)
                 self.obstacles = []
                 for j in range(len(obs['center_x'])):
-                    center = [obs['center_x'][j] + obs['center_y'][j]/2., obs['x_len'][j] + obs['y_len'][j]/2.]
+                    center = [obs['center_x'][j], obs['center_y'][j]]
                     self.obstacles.append(RectangleObs(center, obs['x_len'][j], obs['y_len'][j]))
             
             if data_plan_id[i] != pre_planid:
@@ -160,77 +161,81 @@ class StateSpace(object):
 
                 ### set start and goal
                 stats['num_total'] += 1
-                self.goal = x[10:12].cpu().data.numpy().flatten()
-                self.start = x[:2].cpu().data.numpy().flatten()
-                state = self.start
+                self.goal = x[-1, :dim].cpu().data.numpy().flatten()
+                self.start = x[0, :dim].cpu().data.numpy().flatten()
+                state = copy.deepcopy(self.start)
                 # print('start/goal', self.start, self.goal)
                 
                 if not self.isLineCollision(self.start, self.goal, use_stspace_extent=True): # if collision detected
                     stats['num_trivial'] += 1
                 
-                traj = []
+                traj_plot = []
                 ### plan using trained model or visualize dataset
-                for t in range(20):
+                for t in range(max_tsteps):
                     # input('press enter')
-                    with torch.no_grad():
-                        obs_embedding = torch.tile(y, (N, 1)).to(device)
-                        
-                        ###  get traj using diffusion model
-                        start = torch.tile(torch.from_numpy(state[dim:]).to(device), (N, 1))
-                        goal = torch.tile(x[-1, :dim].to(device), (N, 1))
-                        extra_inp = {'start': start, 'goal': goal}
-                        # extra_inp = None
-                        
-                        traj = diffusion.sampleCFG(diffusion_model, N, obs_embedding, extra_inp=extra_inp) # [N, H, 2*dim]
-                        print('traj.shape', traj.shape)
+                    if config['use_model']:
+                        with torch.no_grad():
+                            obs_embedding = torch.tile(y, (N, 1)).to(device)
+                            
+                            ###  get traj using diffusion model
+                            start = torch.tile(torch.from_numpy(state).to(device), (N, 1))
+                            goal = torch.tile(x[-1, :dim].to(device), (N, 1))
+                            extra_inp = {'start': start, 'goal': goal}
+                            # extra_inp = None
+                            
+                            traj = diffusion.sampleCFG(diffusion_model, N, obs_embedding, extra_inp=extra_inp) # [N, H, 2*dim]
+                            # traj = x.unsqueeze(0) # GT data
+                            # traj = torch.randn((N, 64, 2*dim), device=device)
+                            # print(8'traj.shape', traj.shape)
 
-                        ## not needed
-                        # action = traj[:, 0, dim:]   # get batch of first actions
-                        # action = action.cpu().data.numpy().flatten()
+                            ## not needed
+                            # action = traj[:, 0, dim:]   # get batch of first actions
+                            # action = action.cpu().data.numpy().flatten()
 
-                        action = traj[:, 3, :dim] - traj[:, 0, :dim]  # action = state_t3 - state_t0
-                        # print(action)
-    
-                        traj_states = torch.concatenate((traj[0, ::4, :dim], traj[0, -1:, :dim]),
-                                                         dim=0).cpu().data.numpy()
-                        print(traj_states)
-                        print(traj[0, -5:, :dim].cpu().data.numpy())
+                            action = traj[:, 3, :dim] - traj[:, 0, :dim]  # action = state_t3 - state_t0
+                            # print(action)
+        
+                            traj_states = torch.concatenate((traj[0, ::8, :dim], traj[0, -1:, :dim]),
+                                                            dim=0).cpu().data.numpy()
+                            print(traj_states)
 
-                        self.plotScene(traj_states)
+                            self.plotScene(traj_states)
 
-                        ### Collision model - choose action based on collision prob
-                        inp = {'obs_embedding': obs_embedding, 'state': traj[:, 0, ...]}
-                        print('inp', inp['obs_embedding'].shape, inp['state'].shape)
+                            ### Collision model - choose action based on collision prob
+                            inp = {'obs_embedding': obs_embedding, 'state': traj[:, 0, ...]}
+                            print('inp', inp['obs_embedding'].shape, inp['state'].shape)
 
-                        # col_prob = collision_model(inp)
-                        # col_prob = F.softmax(col_prob, dim=-1).cpu().data.numpy()[:, 1]
-                        # best_act_idx = np.argmin(col_prob, axis=-1)
-                        best_act_idx = 0
-                        # action = traj[best_act_idx, 0, dim:].cpu().data.numpy()
-                        action = action[best_act_idx].cpu().data.numpy()
-                else:
-                    action = x[t, dim:].cpu().data.numpy().flatten()
-                    # state, r, done, _ = env.step(action)
-                    done = np.linalg.norm(state - self.goal) < 0.15 #0.25
-
-                    ### log data
-                    next_state = action['next_state']
-                    traj.append((state, next_state))
-
-                    if not self.config['use_MPNet'] and done:
-                        del traj[-1]
-                    
-                    if self.isLineCollision(state, next_state,  use_stspace_extent=True): # if collision detected
-                        self.plotScene(traj)
-                        if not self.config['stochastic']:
-                            break
+                            # col_prob = collision_model(inp)
+                            # col_prob = F.softmax(col_prob, dim=-1).cpu().data.numpy()[:, 1]
+                            # best_act_idx = np.argmin(col_prob, axis=-1)
+                            best_act_idx = 0
+                            # action = traj[best_act_idx, 0, dim:].cpu().data.numpy()
+                            action = action[best_act_idx].cpu().data.numpy()
                     else:
-                        state = next_state
+                        action = x[t, dim:].cpu().data.numpy().flatten()
                     
-                    if done:
-                        stats['num_solved'] += 1
-                        self.plotScene(traj)
-                        break
+                    if False:
+                        # state, r, done, _ = env.step(action)
+                        done = np.linalg.norm(state - self.goal) < 0.15 #0.25
+
+                        ### log data
+                        next_state = state + action
+                        traj_plot.append((state, next_state))
+
+                        if not self.config['use_MPNet'] and done:
+                            del traj_plot[-1]
+                        
+                        if self.isLineCollision(state, next_state,  use_stspace_extent=True): # if collision detected
+                            self.plotScene(traj_plot)
+                            if not self.config['stochastic']:
+                                break
+                        else:
+                            state = next_state
+                        
+                        if done:
+                            stats['num_solved'] += 1
+                            self.plotScene(traj_plot)
+                            break
         
             if i%1000 == 0:
                 pbar.set_description('solved/total: {}/{} ({} trivial)'.format(stats['num_solved'],
@@ -241,7 +246,7 @@ class StateSpace(object):
         fig, ax = plt.subplots()
         
         # plot start and goal
-        sz = 0.08
+        sz = 0.02
         if self.start is not None and self.goal is not None:
             ax.add_patch(Circle(self.start, sz, fill=True, color='c', label='start'))
             goal_rec = (self.goal[0] - sz, self.goal[1] - sz)
@@ -249,10 +254,9 @@ class StateSpace(object):
 
         # plot states
         if traj is not None:
-            for i in range(len(traj)):
-                dim = 2
-                state = traj[i][0][:2]
-                next_state = traj[i][1][:2]
+            for i in range(len(traj) - 1):
+                state = traj[i]
+                next_state = traj[i + 1]
                 x = [state[0], next_state[0]]
                 y = [state[1], next_state[1]]
                 ax.plot(x,  y, color='r')
@@ -266,6 +270,7 @@ class StateSpace(object):
                 x = obs.center[0] - obs.x_len / 2.0
                 y = obs.center[1] - obs.y_len / 2.0
                 obs_shape = Rectangle((x,y), obs.x_len, obs.y_len, fill=True, color='k')
+                print(np.array([obs.center[0], obs.center[1], obs.x_len, obs.y_len]))
             ax.add_patch(obs_shape)
         plt.legend()
         plt.xlim(self.bounds)

@@ -167,7 +167,6 @@ def visualizeDiffusionPerformance(mode, hparams):
                         traj_states = torch.concatenate((traj[0, ::4, :dim], traj[0, -1:, :dim]),
                                                          dim=0).cpu().data.numpy()
                         print(traj_states)
-                        print(traj[0, -5:, :dim].cpu().data.numpy())
                         print('start', env.stspace.init_state)
                         print('goal', env.stspace.goal_state)
                     

@@ -259,6 +259,9 @@ class TrajectoryDataset(Dataset):
         data_folder = hparams['data_folder']
         path = hparams['path']
         file_name = 'MPData'
+
+        # mp_data = pd.read_json(f'{data_folder}{file_name}{path}.json', orient='index')
+        # mp_data.to_pickle(f'{data_folder}{file_name}{path}.pkl')
         mp_data = pd.read_pickle(f'{data_folder}{file_name}{path}.pkl')
 
         self.data_state = np.array(mp_data['state'].tolist(), dtype=np.float32)[:,(-2*dim):]
